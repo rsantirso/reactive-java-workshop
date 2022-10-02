@@ -1,8 +1,10 @@
 package io.javabrains.reactiveworkshop;
 
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 import java.util.random.RandomGenerator;
 
 public class TestFunctionToFlux {
@@ -12,11 +14,11 @@ public class TestFunctionToFlux {
   public static void main(String[] args) throws IOException {
 
     fluxExternalIntGen()
-      //.parallel(5)
-      //.runOn(Schedulers.boundedElastic())
+      .parallel(2)
+      .runOn(Schedulers.boundedElastic())
       .log()
-      .onErrorComplete()
-      .subscribe(i -> System.out.println(Thread.currentThread().getName() + " -> " + i));
+      .doOnError(System.err::println)
+      .subscribe(slowConsumer());
 
     System.out.println("Press a key to end");
     System.in.read();
@@ -26,10 +28,10 @@ public class TestFunctionToFlux {
     return RandomGenerator.getDefault().ints(previous < 0 ? previous * -1 : previous)
       .map(i -> {
         try {
-          System.out.println("sleeping with previous " + previous + " and current " + i);
+          System.out.println("[ GEN] sleeping with previous " + previous + " and current " + i);
           Thread.sleep(500);
           ++COUNTER;
-          System.out.println("returning " + COUNTER + "th current number " + i);
+          System.out.println("[ GEN] returning " + COUNTER + "th current number " + i);
           return i;
         } catch (InterruptedException e) {
           throw new RuntimeException(e);
@@ -48,6 +50,17 @@ public class TestFunctionToFlux {
         }
         return externalIntGen(state);
       });
+  }
+
+  private static Consumer<Integer> slowConsumer() {
+    return value -> {
+      try {
+        System.out.println("[ CON] " + Thread.currentThread().getName() + " -> Slowly consuming " + value);
+        Thread.sleep(1000);
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+    };
   }
 
 }
